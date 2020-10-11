@@ -22,7 +22,7 @@ impl Line {
     Line {
       homogeneous: Vec3 {
         x: 0.0,
-        y: 1.0,
+        y: -1.0,
         z: y,
       },
     }
@@ -35,9 +35,9 @@ impl From<Segment> for Line {
 
     Line {
       homogeneous: Vec3 {
-        x: d.x,
-        y: d.y,
-        z: segment.a.y * segment.b.x - segment.a.x * segment.b.y,
+        x: d.y,
+        y: -d.x,
+        z: segment.a.y * d.x - segment.a.x * d.y,
       },
     }
   }

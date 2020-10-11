@@ -31,7 +31,7 @@ impl Client {
   pub fn new(resolution: Vec2<f32>, controlled_entity: EntityId) -> Self {
     Client {
       view: View::new(resolution),
-      hud: Hud::new(),
+      hud: Hud::new(resolution),
       user_controls: UserControls::default(),
 
       controlled_entity,

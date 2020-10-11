@@ -22,7 +22,7 @@ impl Segment {
   pub fn project_point(&self, point: Vec2<f32>) -> f32 {
     let d = self.direction();
     let a_to_point = point - self.a;
-    d.dot(a_to_point) / d.length()
+    d.dot(a_to_point) / d.length_squared()
   }
 
   pub fn intersection_line(self, line: &Line) -> Option<Vec2<f32>> {

@@ -44,6 +44,12 @@ impl Entity {
     result
   }
 
+  pub fn new_from_block(block: Block) -> Entity {
+    let mut entity = Entity::new(block.shape.clone(), Insist::default(), Insist::default());
+    entity.blocks.push(block);
+    entity
+  }
+
   pub fn get_id(&self) -> u64 {
     self.id
   }
