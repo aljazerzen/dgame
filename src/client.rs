@@ -39,39 +39,32 @@ impl Client {
   }
 
   pub fn tick(&mut self, root_grid: &mut Grid) {
-    {
-      let found = root_grid.visit_mut(&|g| {
-        if g == &self.controlled_entity.grid_id {
-          for entity in &mut g.entities {
-            if entity == &self.controlled_entity.entity_id {
-              entity.use_controls(&self.user_controls);
-              return true;
-            }
-          }
-        }
-        false
-      });
-
-      if !found {
-        self.controlled_entity = root_grid
-          .visit(&|g| {
-            for entity in &g.entities {
-              if entity == &self.controlled_entity.entity_id {
-                return Some(EntityId {
-                  grid_id: g.get_id(),
-                  entity_id: entity.get_id(),
-                });
-              }
-            }
-            None
-          })
-          .unwrap();
-      }
-    }
+    self.grid_use_controls(root_grid);
     self.view.tick();
     self
       .hud
       .update_trackers(self.view.size, &root_grid, self.controlled_entity);
+  }
+
+  fn grid_use_controls(&mut self, root_grid: &mut Grid) {
+    let id = self.controlled_entity;
+
+    if let Some(entity) = root_grid.find_entity(&id) {
+      entity.use_controls(&self.user_controls);
+    } else {
+      // entity may have changed grid, search all grids
+      if let Some(grid) = root_grid.find(&|g| g.get_entity(id.entity_id).is_some()) {
+        let grid_id = grid.get_id();
+        if let Some(entity) = grid.get_entity_mut(id.entity_id) {
+          self.controlled_entity = EntityId {
+            grid_id,
+            entity_id: entity.get_id(),
+          };
+          entity.use_controls(&self.user_controls);
+          return;
+        }
+      }
+    }
   }
 
   pub fn get_controlled_entity(&self) -> EntityId {
@@ -79,12 +72,7 @@ impl Client {
   }
 
   pub fn render<T: RenderTarget>(&mut self, root_grid: &Grid, canvas: &mut Canvas<T>) {
-    render(
-      &root_grid,
-      &self.controlled_entity,
-      &mut self.view,
-      canvas,
-    );
+    render(&root_grid, &self.controlled_entity, &mut self.view, canvas);
     self.hud.render(canvas);
   }
 

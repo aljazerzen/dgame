@@ -1,3 +1,4 @@
+use crate::client::EntityId;
 use crate::entity::{Entity, Thruster};
 use crate::entity_controller::EntityController;
 use crate::math::vec::*;
@@ -38,7 +39,6 @@ impl Grid {
     self.id
   }
 
-  #[allow(dead_code)]
   pub fn visit<F, R>(&self, func: &F) -> Option<R>
   where
     F: Fn(&Grid) -> Option<R>,
@@ -53,6 +53,49 @@ impl Grid {
       let res = child.visit(func);
       if res.is_some() {
         return res;
+      }
+    }
+    None
+  }
+
+  pub fn find<'a, F>(&'a mut self, func: &F) -> Option<&'a mut Grid>
+  where
+    F: Fn(&Grid) -> bool,
+  {
+    if func(self) {
+      return Some(self);
+    }
+    for child in &mut self.children {
+      let res = child.find(func);
+      if res.is_some() {
+        return res;
+      }
+    }
+    None
+  }
+
+  pub fn get_entity_mut<'a>(&'a mut self, entity_id: u64) -> Option<&'a mut Entity> {
+    for entity in &mut self.entities {
+      if entity.get_id() == entity_id {
+        return Some(entity);
+      }
+    }
+    None
+  }
+
+  pub fn get_entity<'a>(&'a self, entity_id: u64) -> Option<&'a Entity> {
+    for entity in &self.entities {
+      if entity.get_id() == entity_id {
+        return Some(entity);
+      }
+    }
+    None
+  }
+
+  pub fn find_entity<'a>(&'a mut self, id: &EntityId) -> Option<&'a mut Entity> {
+    if let Some(controlled) = self.find(&|g| g.get_id() == id.grid_id) {
+      if let Some(entity) = controlled.get_entity_mut(id.entity_id) {
+        return Some(entity);
       }
     }
     None

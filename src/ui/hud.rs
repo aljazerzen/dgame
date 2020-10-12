@@ -51,6 +51,10 @@ impl Hud {
     false
   }
 
+  pub fn sync_grid(&mut self, view_size: Vec2<f32>, grid: &Grid, focus: EntityId) {
+    
+  }
+
   pub fn update_trackers(&mut self, view_size: Vec2<f32>, grid: &Grid, focus: EntityId) {
     let relations = grid.get_descendant_relations(Insist::default());
 
@@ -179,10 +183,12 @@ impl HudElement {
       match event {
         Event::MouseMotion { x, y, .. } => {
           self.drag_move(Vec2::new(*x, *y));
+          return true;
         }
         Event::MouseButtonUp { x, y, .. } => {
           if self.drag_end(Vec2::new(*x, *y)) {
             self.dragging = false;
+            return true;
           }
         }
         _ => {}
