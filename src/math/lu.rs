@@ -2,39 +2,39 @@ use gamemath::{Mat3, Vec3};
 
 #[allow(non_snake_case)]
 pub fn solve_lu(A: &Mat3, b: Vec3<f32>) -> Vec3<f32> {
-  let (L, U) = lu(A);
+    let (L, U) = lu(A);
 
-  let y = solve_L(L, b);
+    let y = solve_L(L, b);
 
-  solve_U(U, y)
+    solve_U(U, y)
 }
 
 #[allow(non_snake_case)]
 fn solve_L(L: Mat3, b: Vec3<f32>) -> Vec3<f32> {
-  let mut y: Vec3<f32> = Vec3::default();
+    let mut y: Vec3<f32> = Vec3::default();
 
-  for i in 0..3 {
-    let mut sum = 0.0;
-    for j in 0..i {
-      sum += y[j] * L[i][j];
+    for i in 0..3 {
+        let mut sum = 0.0;
+        for j in 0..i {
+            sum += y[j] * L[i][j];
+        }
+        y[i] = b[i] - sum;
     }
-    y[i] = b[i] - sum;
-  }
-  y
+    y
 }
 
 #[allow(non_snake_case)]
 fn solve_U(U: Mat3, y: Vec3<f32>) -> Vec3<f32> {
-  let mut x: Vec3<f32> = Vec3::default();
+    let mut x: Vec3<f32> = Vec3::default();
 
-  for i in (0..3).rev() {
-    let mut sum = 0.0;
-    for j in i + 1..3 {
-      sum += x[j] * U[i][j];
+    for i in (0..3).rev() {
+        let mut sum = 0.0;
+        for j in i + 1..3 {
+            sum += x[j] * U[i][j];
+        }
+        x[i] = (y[i] - sum) / U[i][i];
     }
-    x[i] = (y[i] - sum) / U[i][i];
-  }
-  x
+    x
 }
 
 // fn pivot(a: &mut Mat3) {
@@ -66,27 +66,27 @@ fn solve_U(U: Mat3, y: Vec3<f32>) -> Vec3<f32> {
 /// Also, diagonal of L only contains values of 1.
 #[allow(non_snake_case)]
 fn lu(A: &Mat3) -> (Mat3, Mat3) {
-  let mut L: Mat3 = Mat3::identity();
-  let mut U: Mat3 = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).into();
+    let mut L: Mat3 = Mat3::identity();
+    let mut U: Mat3 = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).into();
 
-  for col in 0..3 {
-    // fill U
-    for row in 0..col + 1 {
-      let mut sum = 0.0;
-      for i in 0..row {
-        sum += U[i][col] * L[row][i];
-      }
+    for col in 0..3 {
+        // fill U
+        for row in 0..col + 1 {
+            let mut sum = 0.0;
+            for i in 0..row {
+                sum += U[i][col] * L[row][i];
+            }
 
-      U[row][col] = A[row][col] - sum;
+            U[row][col] = A[row][col] - sum;
+        }
+        // fill L
+        for row in col + 1..3 {
+            let mut sum = 0.0;
+            for i in 0..col {
+                sum += U[i][col] * L[row][i];
+            }
+            L[row][col] = (A[row][col] - sum) / U[col][col];
+        }
     }
-    // fill L
-    for row in col + 1..3 {
-      let mut sum = 0.0;
-      for i in 0..col {
-        sum += U[i][col] * L[row][i];
-      }
-      L[row][col] = (A[row][col] - sum) / U[col][col];
-    }
-  }
-  (L, U)
+    (L, U)
 }

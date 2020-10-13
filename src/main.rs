@@ -1,7 +1,6 @@
 mod client;
 mod engine;
 mod entity;
-mod entity_controller;
 mod grid;
 mod math;
 mod render;
@@ -11,7 +10,7 @@ mod ui;
 use client::{Client, EntityId};
 use engine::engine_tick;
 use gamemath::Vec2;
-use grid::construct_demo_grid;
+use grid::construct_demo_world;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::render::Canvas;
@@ -44,8 +43,10 @@ fn main() {
 
     let mut canvas: Canvas<Window> = window.into_canvas().present_vsync().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut world = construct_demo_grid();
-    let mut client = Client::new(resolution, EntityId::new(world.get_id(), world.entities[0].get_id()));
+    let mut world = construct_demo_world();
+    let grid_id = *world.grids.iter().next().unwrap().0;
+    let entity_id = world.grids[&grid_id].entities[0].get_id();
+    let mut client = Client::new(resolution, EntityId::new(grid_id, entity_id));
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -55,9 +56,7 @@ fn main() {
             client.handle_event(&event);
         }
 
-        world = engine_tick(world, &mut client.view);
-        world = world.pull_to_root(client.get_controlled_entity().grid_id);
-
+        engine_tick(&mut world, &mut client.view);
 
         client.tick(&mut world);
 

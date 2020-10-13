@@ -1,7 +1,6 @@
+pub mod bounding_box;
+pub mod line;
+pub mod lu;
 pub mod polygon;
-pub mod polygon_intersect;
 pub mod segment;
 pub mod vec;
-pub mod line;
-pub mod bounding_box;
-pub mod lu;
