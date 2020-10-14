@@ -1,7 +1,8 @@
+use crate::entity::Entity;
 use crate::grid::World;
 use crate::render::{render, View};
 use crate::ui::hud::Hud;
-use crate::ui::user_controls::UserControls;
+use crate::ui::user_controls::{Action, UserControls};
 use gamemath::Vec2;
 use sdl2::event::Event;
 use sdl2::render::{Canvas, RenderTarget};
@@ -44,11 +45,22 @@ impl Client {
         self.view.tick();
         self.hud.tick(&self.view, world, self.controlled_entity);
 
-        if let Some(entity) = world.get_entity_mut(&self.controlled_entity) {
-            let actions = self.user_controls.poll_actions();
-
-            for action in actions {
-                entity.apply_action(&action);
+        let actions = self.user_controls.poll_actions();
+        for action in actions {
+            if let Action::LoadEntity { filename } = action {
+                if let Some(entity) = Entity::load_from_file(filename).ok() {
+                    if let Some(grid) = world.grids.get_mut(&self.controlled_entity.grid_id) {
+                        let position = grid
+                            .get_entity(self.controlled_entity.entity_id)
+                            .map(|e| e.position.state)
+                            .unwrap_or_default();
+                        grid.spawn_entity(position, entity);
+                    }
+                }
+            } else {
+                if let Some(entity) = world.get_entity_mut(&self.controlled_entity) {
+                    entity.apply_action(&action);
+                }
             }
         }
     }

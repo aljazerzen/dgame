@@ -86,22 +86,11 @@ impl<T: RenderTarget> Render<T> for Grid {
             entity.render(position, canvas);
         }
         {
-            let mut bounding_box = BoundingBox::default();
-            for entity in &self.entities {
-                let shape_position =
-                    translation(entity.position.state) * Mat3::rotation(entity.angle.state);
-                for point in &entity.shape.points {
-                    bounding_box += (shape_position * *point).into_cartesian();
-                }
-            }
             canvas.set_draw_color(Color::RGB(50, 50, 80));
-            construct_rect_poly(
-                bounding_box.top_left.x - 1.0,
-                bounding_box.bottom_right.x + 1.0,
-                bounding_box.top_left.y - 1.0,
-                bounding_box.bottom_right.y + 1.0,
-            )
-            .render(position, canvas);
+            self.bounding_box()
+                .expand(1.0)
+                .polygon()
+                .render(position, canvas);
         }
     }
 }

@@ -97,6 +97,16 @@ impl UserControls {
                 self.rotate_right = pressed;
                 self.emit_rotate_action();
             }
+            Keycode::F5 => {
+                if pressed {
+                    self.action_queue.push(Action::SaveEntity)
+                }
+            }
+            Keycode::F6 => {
+                if pressed {
+                    self.action_queue.push(Action::LoadEntity { filename: "./data/entities/12094447930535717060".to_owned() })
+                }
+            }
             _ => {}
         }
     }
@@ -144,5 +154,6 @@ pub enum Action {
     UpdateShape { new_shape: Box<Polygon> },
     PlaceBlock { block: Box<dyn Block> },
 
-    Export,
+    SaveEntity,
+    LoadEntity { filename: String },
 }

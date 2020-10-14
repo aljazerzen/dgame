@@ -1,21 +1,21 @@
-extern crate serde;
-extern crate rmp_serde as rmps;
-
-use serde::{Deserialize, Serialize};
-use rmps::{Deserializer, Serializer};
-
 use crate::grid::Insist;
 use crate::math::polygon::Polygon;
 use crate::math::vec::*;
-use crate::ui::user_controls::{Action, UserControls};
+use crate::ui::user_controls::Action;
 use gamemath::{Mat2, Mat3, Vec2, Vec3};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+use std::io::{Read, Write};
 
 const ENTITY_SHAPE_DENSITY: f32 = 0.02;
 
-#[derive(Debug)]
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Entity {
     id: u64,
     pub shape: Polygon,
+
+    #[serde_as(as = "Insist<Vec2Serde<f32>>")]
     pub position: Insist<Vec2<f32>>,
     pub angle: Insist<f32>,
 
@@ -64,7 +64,7 @@ impl Entity {
                     block.apply_action(action);
                 }
             }
-            Action::Export => {
+            Action::SaveEntity => {
                 self.save_to_file();
             }
             _ => {}
@@ -146,14 +146,21 @@ impl Entity {
         translation(self.position.state) * Mat3::rotation(self.angle.state)
     }
 
-    pub fn save_to_file(&self) {
-        
-        // &mut Serializer::new(&mut buf)
+    pub fn save_to_file(&self) -> Result<(), std::io::Error> {
+        let bytes = rmp_serde::to_vec(self).unwrap();
 
-        
+        let filename = "./data/entities/".to_owned() + &self.id.to_string();
 
-        // val.serialize().unwrap();
+        let mut file = std::fs::File::create(filename)?;
+        file.write_all(&bytes)?;
 
+        Ok(())
+    }
+
+    pub fn load_from_file(filename: String) -> Result<Entity, rmp_serde::decode::Error> {
+        let bytes = std::fs::read(filename).unwrap_or(Vec::new());
+
+        rmp_serde::from_read_ref(&bytes)
     }
 }
 
@@ -206,6 +213,7 @@ impl std::ops::AddAssign<ForcePoint> for ForcePoint {
     }
 }
 
+#[typetag::serde(tag = "type")]
 pub trait Block: std::fmt::Debug {
     fn shape(&self) -> &Polygon;
     fn offset(&self) -> Vec2<f32>;
@@ -225,13 +233,17 @@ pub trait Block: std::fmt::Debug {
     fn apply_action(&mut self, action: &Action);
 }
 
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Thruster {
     shape: Polygon,
+    #[serde_as(as = "Vec2Serde<f32>")]
     offset: Vec2<f32>,
     angle: f32,
     throttle: f32,
     throttle_target: f32,
+
+    #[serde_as(as = "Vec2Serde<f32>")]
     thrust_vector: Vec2<f32>,
 }
 
@@ -267,6 +279,7 @@ impl Thruster {
     }
 }
 
+#[typetag::serde]
 impl Block for Thruster {
     fn shape(&self) -> &Polygon {
         &self.shape

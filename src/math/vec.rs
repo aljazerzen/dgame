@@ -1,5 +1,10 @@
 use gamemath::{Mat3, Vec2, Vec3};
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{SeqAccess, Visitor},
+    ser::SerializeTuple,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+use serde_with::{DeserializeAs, SerializeAs};
 
 pub trait Perpendicular {
     fn perpendicular(self: &Self) -> Self;
@@ -96,4 +101,91 @@ pub fn phase_out(val: f32) -> f32 {
         return (val - (0.05 * (val - 1.0))).min(0.0);
     }
     0.0
+}
+
+// #[serde(remote = "Vec2")]
+#[derive(Serialize, Deserialize)]
+pub struct Vec2Serde<T: Serialize> {
+    x: T,
+    y: T,
+}
+
+impl<T: Serialize + Clone> From<&Vec2<T>> for Vec2Serde<T> {
+    fn from(vec2: &Vec2<T>) -> Vec2Serde<T> {
+        Vec2Serde {
+            x: vec2.x.clone(),
+            y: vec2.y.clone(),
+        }
+    }
+}
+
+impl<T: Serialize> Into<Vec2<T>> for Vec2Serde<T> {
+    fn into(self) -> Vec2<T> {
+        Vec2 { x: self.x, y: self.y }
+    }
+}
+
+impl<T: Serialize + Clone> SerializeAs<Vec2<T>> for Vec2Serde<T> {
+    fn serialize_as<S>(source: &Vec2<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Vec2Serde::from(source).serialize(serializer)
+    }
+}
+
+impl <'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Vec2<T>> for Vec2Serde<T> {
+    
+    fn deserialize_as<D>(deserializer: D) -> Result<Vec2<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = Vec2Serde::deserialize(deserializer)?;
+
+        Ok(v.into())
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Vec3Serde<T: Serialize> {
+    x: T,
+    y: T,
+    z: T,
+}
+
+impl<T: Serialize + Clone> From<&Vec3<T>> for Vec3Serde<T> {
+    fn from(vec3: &Vec3<T>) -> Vec3Serde<T> {
+        Vec3Serde {
+            x: vec3.x.clone(),
+            y: vec3.y.clone(),
+            z: vec3.z.clone(),
+        }
+    }
+}
+
+impl<T: Serialize> Into<Vec3<T>> for Vec3Serde<T> {
+    fn into(self) -> Vec3<T> {
+        Vec3 { x: self.x, y: self.y, z: self.z }
+    }
+}
+
+impl<T: Serialize + Clone> SerializeAs<Vec3<T>> for Vec3Serde<T> {
+    fn serialize_as<S>(source: &Vec3<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Vec3Serde::from(source).serialize(serializer)
+    }
+}
+
+impl <'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Vec3<T>> for Vec3Serde<T> {
+    
+    fn deserialize_as<D>(deserializer: D) -> Result<Vec3<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = Vec3Serde::deserialize(deserializer)?;
+
+        Ok(v.into())
+    }
 }

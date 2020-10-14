@@ -5,10 +5,13 @@ use super::vec::*;
 use gamemath::{Mat3, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
+use serde_with::serde_as;
 
-#[derive(Clone, Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Polygon {
     /// Vertices of the polygon in homogeneous coordinates.
+    #[serde_as(as = "Vec<Vec3Serde<f32>>")]
     pub points: Vec<Vec3<f32>>,
 }
 

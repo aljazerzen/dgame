@@ -2,10 +2,16 @@ use crate::client::EntityId;
 use crate::entity::{Entity, Thruster};
 use crate::math::vec::*;
 use crate::math::{
-    bounding_box::BoundingBox,
+    bounding_box::{BoundingBox, RectBounds},
     polygon::{construct_rect_poly_centered, Polygon},
 };
-use gamemath::Vec2;
+use gamemath::{Mat3, Vec2};
+use serde::{
+    de::{self, MapAccess, SeqAccess, Visitor},
+    ser::SerializeStruct,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+use serde_with::{DeserializeAs, SerializeAs};
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign, Div, Mul, Neg};
 
@@ -52,6 +58,36 @@ impl Grid {
         None
     }
 
+    pub fn spawn_entity(&mut self, position: Vec2<f32>, mut entity: Entity) {
+        let bounds = self.bounding_box();
+        let closest_edge = bounds
+            .polygon()
+            .to_segments()
+            .iter()
+            .map(|segment| {
+                let alpha = segment.project_point(position);
+                let perpendicular = ((segment.direction() * alpha) + segment.a) - position;
+                let distance = perpendicular.length();
+                (perpendicular, distance)
+            })
+            .min_by(|x, y| x.1.partial_cmp(&y.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|x| x.0);
+
+        if let Some(closest_edge) = closest_edge {
+            let entity_bounds = entity.shape.bounding_box();
+            let entity_size = entity_bounds.bottom_right - entity_bounds.top_left;
+
+            let direction = closest_edge.normalized();
+            let offset = Vec2::new(direction.x * entity_size.x, direction.y * entity_size.y);
+            let entity_position = closest_edge + offset + position;
+
+            entity.position.state = entity_position;
+            entity.position.velocity = Vec2::default();
+
+            self.entities.push(entity);
+        }
+    }
+
     fn get_common_insist(&self) -> Insist<Vec2<f32>> {
         Insist::get_common(self.entities.iter().map(|e| &e.position).collect())
     }
@@ -69,7 +105,7 @@ impl Grid {
     }
 
     fn should_split(&self) -> bool {
-        let mut bounding_box = BoundingBox::default();
+        let mut bounding_box = RectBounds::default();
         for entity in &self.entities {
             bounding_box += entity.position.state;
         }
@@ -479,7 +515,7 @@ impl PartialEq<u64> for Grid {
 }
 
 /// A value and its velocity.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Insist<T> {
     pub state: T,
     pub velocity: T,
@@ -584,6 +620,93 @@ impl<T: Neg<Output = O>, O> Neg for Insist<T> {
             state: -self.state,
             velocity: -self.velocity,
         }
+    }
+}
+
+impl<T: Serialize + Clone> SerializeAs<Insist<Vec2<T>>> for Insist<Vec2Serde<T>> {
+    fn serialize_as<S>(source: &Insist<Vec2<T>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("Insist", 3)?;
+        s.serialize_field("state", &Vec2Serde::from(&source.state))?;
+        s.serialize_field("velocity", &Vec2Serde::from(&source.velocity))?;
+        s.end()
+    }
+}
+
+impl<'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Insist<Vec2<T>>>
+    for Insist<Vec2Serde<T>>
+{
+    fn deserialize_as<D>(deserializer: D) -> Result<Insist<Vec2<T>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field {
+            State,
+            Velocity,
+        }
+        struct InsistVisitor<U> {
+            p: Option<U>,
+        };
+
+        impl<'de, T: Serialize + Deserialize<'de>> Visitor<'de> for InsistVisitor<T> {
+            type Value = Insist<Vec2Serde<T>>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("struct Insist")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Insist<Vec2Serde<T>>, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let state = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let velocity = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                Ok(Insist { state, velocity })
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Insist<Vec2Serde<T>>, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut state = None;
+                let mut velocity = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::State => {
+                            if state.is_some() {
+                                return Err(de::Error::duplicate_field("state"));
+                            }
+                            state = Some(map.next_value()?);
+                        }
+                        Field::Velocity => {
+                            if velocity.is_some() {
+                                return Err(de::Error::duplicate_field("velocity"));
+                            }
+                            velocity = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let state = state.ok_or_else(|| de::Error::missing_field("state"))?;
+                let velocity = velocity.ok_or_else(|| de::Error::missing_field("velocity"))?;
+                Ok(Insist { state, velocity })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &["state", "velocity"];
+        deserializer
+            .deserialize_struct("Insist", FIELDS, InsistVisitor::<T> { p: None })
+            .map(|Insist { state, velocity }| Insist {
+                state: state.into(),
+                velocity: velocity.into(),
+            })
     }
 }
 
