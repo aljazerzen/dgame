@@ -1,5 +1,4 @@
 use super::polygon::Polygon;
-use super::segment::Segment;
 use super::vec::*;
 use crate::grid::Grid;
 use gamemath::{Mat3, Vec2};

@@ -5,12 +5,12 @@ use crate::ui::user_controls::Action;
 use gamemath::{Mat2, Mat3, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::io::{Read, Write};
+use std::io::Write;
 
 const ENTITY_SHAPE_DENSITY: f32 = 0.02;
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Entity {
     id: u64,
     pub shape: Polygon,
@@ -49,7 +49,7 @@ impl Entity {
 
     pub fn new_from_block(block: Box<dyn Block>) -> Entity {
         let mut entity = Entity::new(block.shape().clone(), Insist::default(), Insist::default());
-        entity.blocks.push(Box::from(block));
+        entity.blocks.push(block);
         entity
     }
 
@@ -57,15 +57,44 @@ impl Entity {
         self.id
     }
 
-    pub fn apply_action(&mut self, action: &Action) {
+    pub fn apply_action(&mut self, action: Action) {
         match action {
-            Action::Accelerate { .. } | Action::Rotate { .. } => {
+            Action::Accelerate { .. } => {
+                // let rotation = Mat2::rotation(-self.angle.state);
+                // direction = rotation * direction;
                 for block in &mut self.blocks {
-                    block.apply_action(action);
+                    block.apply_action(&action);
                 }
             }
+            Action::Rotate { .. } => {
+                for block in &mut self.blocks {
+                    block.apply_action(&action);
+                }
+            }
+            Action::UpdateShape { new_shape } => {
+                let transform =
+                    Mat3::rotation(-self.angle.state) * translation(-self.position.state);
+                self.expand_shape(transform * *new_shape);
+                self.redistribute_weight();
+            }
+            Action::JoinEntity { mut entity } => {
+                let transform = Mat3::rotation(-self.angle.state)
+                    * translation(entity.position.state - self.position.state)
+                    * Mat3::rotation(entity.angle.state);
+
+                self.expand_shape(transform * entity.shape);
+
+                for mut block in entity.blocks.drain(..) {
+                    block.set_offset(
+                        (transform * block.offset().into_homogeneous()).into_cartesian(),
+                    );
+                    block.set_angle(block.angle() + entity.angle.state - self.angle.state);
+                    self.blocks.push(block);
+                }
+                self.redistribute_weight();
+            }
             Action::SaveEntity => {
-                self.save_to_file();
+                self.save_to_file().ok();
             }
             _ => {}
         }
@@ -86,12 +115,25 @@ impl Entity {
         }
     }
 
+    pub fn expand_shape(&mut self, new_shape: Polygon) {
+        let mut polygons = self.shape.clone().intersection(new_shape);
+
+        for poly in polygons.drain(..) {
+            if poly.contains_point(Vec2::new(0.0, 0.0)) {
+                // let (old_area, _) = self.shape.area_and_centroid();
+                self.shape = poly;
+
+                // let (new_area, _) = self.shape.area_and_centroid();
+            }
+        }
+    }
+
     pub fn force(&self) -> ForcePoint {
         let mut result = ForcePoint::default();
 
         for block in &self.blocks {
             let mut force_point = block.force();
-            force_point.force = block.offset() + Mat2::rotation(block.angle()) * force_point.force;
+            force_point.force = Mat2::rotation(block.angle()) * force_point.force;
             force_point.add_force_torque(block.offset());
 
             result += force_point;
@@ -157,10 +199,26 @@ impl Entity {
         Ok(())
     }
 
-    pub fn load_from_file(filename: String) -> Result<Entity, rmp_serde::decode::Error> {
-        let bytes = std::fs::read(filename).unwrap_or(Vec::new());
+    pub fn load_from_file(
+        filename: std::ffi::OsString,
+    ) -> Result<Entity, rmp_serde::decode::Error> {
+        let bytes = std::fs::read(filename).unwrap_or_else(|_| Vec::new());
 
         rmp_serde::from_read_ref(&bytes)
+    }
+
+    pub fn list_saved() -> Result<Vec<std::ffi::OsString>, std::io::Error> {
+        let res = std::fs::read_dir("./data/entities")?;
+
+        Ok(res
+            .filter(|e| {
+                e.as_ref()
+                    .map(|e| e.file_type().unwrap())
+                    .map(|t| t.is_file())
+                    .unwrap_or(false)
+            })
+            .map(|e| e.unwrap().path().into_os_string())
+            .collect())
     }
 }
 
@@ -214,11 +272,12 @@ impl std::ops::AddAssign<ForcePoint> for ForcePoint {
 }
 
 #[typetag::serde(tag = "type")]
-pub trait Block: std::fmt::Debug {
+pub trait Block: std::fmt::Debug + CloneBlock {
     fn shape(&self) -> &Polygon;
     fn offset(&self) -> Vec2<f32>;
     fn set_offset(&mut self, offset: Vec2<f32>);
     fn angle(&self) -> f32;
+    fn set_angle(&mut self, angle: f32);
 
     fn force(&self) -> ForcePoint {
         ForcePoint::default()
@@ -231,6 +290,25 @@ pub trait Block: std::fmt::Debug {
     }
 
     fn apply_action(&mut self, action: &Action);
+}
+
+pub trait CloneBlock {
+    fn clone_block(&self) -> Box<dyn Block>;
+}
+
+impl<T> CloneBlock for T
+where
+    T: Block + Clone + 'static,
+{
+    fn clone_block(&self) -> Box<dyn Block> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Block> {
+    fn clone(&self) -> Self {
+        self.clone_block()
+    }
 }
 
 #[serde_as]
@@ -293,6 +371,10 @@ impl Block for Thruster {
 
     fn angle(&self) -> f32 {
         self.angle
+    }
+
+    fn set_angle(&mut self, angle: f32) {
+        self.angle = angle;
     }
 
     fn force(&self) -> ForcePoint {

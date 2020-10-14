@@ -1,11 +1,12 @@
 use crate::client::EntityId;
 use crate::entity::{Entity, Thruster};
 use crate::grid::{GridRelation, Insist, World};
-use crate::math::lu::solve_lu;
+use crate::math::bounding_box::BoundingBox;
 use crate::math::polygon::{construct_rect_poly, construct_rect_poly_centered, Polygon};
 use crate::math::segment::Segment;
 use crate::math::vec::*;
-use crate::render::{into_vec, Render, View};
+use crate::render::{into_vec, Render};
+use crate::ui::user_controls::Action;
 use gamemath::{Mat3, Vec2};
 use sdl2::event::Event;
 use sdl2::pixels::Color;
@@ -17,6 +18,8 @@ pub struct Hud {
     pub grid_trackers: Vec<GridRelation>,
 
     elements: Vec<HudElement>,
+
+    action_queue: Vec<Action>,
 }
 
 impl Hud {
@@ -35,12 +38,34 @@ impl Hud {
                     view_size,
                 ),
                 HudElement::new_toolbar_button(
-                    Vec2::new(0, -2),
+                    Vec2::new(2, -1),
                     Entity::new_from_block(Box::from(Thruster::new(40.0, Vec2::default(), 0.0))),
                     view_size,
                 ),
             ],
+            action_queue: Vec::new(),
         }
+    }
+
+    pub fn load_saved_entities(&mut self, view_size: Vec2<f32>) {
+        let mut index = 0;
+        for path in Entity::list_saved().unwrap_or_else(|_| vec![]) {
+            if let Ok(mut entity) = Entity::load_from_file(path) {
+                entity.redistribute_weight();
+                entity.position.state = Vec2::default();
+                self.elements.push(HudElement::new_toolbar_button(
+                    Vec2::new(index, -2),
+                    entity,
+                    view_size,
+                ));
+
+                index += 1;
+            }
+        }
+    }
+
+    pub fn poll_actions(&mut self) -> std::vec::Drain<'_, Action> {
+        self.action_queue.drain(..)
     }
 
     pub fn handle_event(&mut self, event: &Event) -> bool {
@@ -53,13 +78,13 @@ impl Hud {
     }
 
     /// Pull data from & push actions to grids
-    pub fn tick(&mut self, view: &View, world: &mut World, focus: EntityId) {
+    pub fn tick(&mut self, world: &mut World, focus: EntityId) {
         self.update_trackers(world, focus);
 
-        if let Some(entity) = world.get_entity_mut(&focus) {
-            for element in &mut self.elements {
-                element.tick(view, entity);
-            }
+        for element in &mut self.elements {
+            let mut actions = element.tick();
+
+            self.action_queue.extend(actions.drain(..));
         }
     }
 
@@ -84,7 +109,6 @@ impl Hud {
                     .min(15.0)
                     .max(2.0);
                 let rect = construct_rect_poly_centered(size, size);
-                
                 rect.render(position, canvas);
 
                 tracker.position.velocity.render(position, canvas);
@@ -122,6 +146,7 @@ const HUD_ELEMENT_SIZE: i32 = 40;
 enum HudElementVariant {
     ToolbarButton {
         entity: Box<Entity>,
+        scale: f32,
         ghost: Option<Ghost>,
     },
 }
@@ -148,11 +173,17 @@ impl HudElement {
         ));
         let shape = construct_rect_poly(0.0, HUD_ELEMENT_SIZE as f32, 0.0, HUD_ELEMENT_SIZE as f32);
 
+        let bb = entity.shape.bounding_box();
+        let diagonal = bb.bottom_right - bb.top_left;
+        let max_dimen = diagonal.x.max(diagonal.y);
+        let scale = 0.8 * (HUD_ELEMENT_SIZE as f32) / max_dimen;
+
         HudElement {
             position,
             shape,
             variant: HudElementVariant::ToolbarButton {
                 entity: Box::from(entity),
+                scale,
                 ghost: None,
             },
             dragging: false,
@@ -165,11 +196,15 @@ impl HudElement {
         self.shape.render(position, canvas);
 
         match &self.variant {
-            HudElementVariant::ToolbarButton { entity, ghost } => {
+            HudElementVariant::ToolbarButton {
+                entity,
+                ghost,
+                scale,
+            } => {
                 let center = Vec2::from(HUD_ELEMENT_SIZE as f32) * 0.5;
 
                 entity.render(
-                    position * translation(center) * Mat3::identity().scaled((0.5).into()),
+                    position * translation(center) * Mat3::identity().scaled((*scale).into()),
                     canvas,
                 );
 
@@ -180,33 +215,31 @@ impl HudElement {
         }
     }
 
-    fn tick(&mut self, view: &View, entity: &mut Entity) {
+    fn tick(&mut self) -> Vec<Action> {
+        let mut actions = Vec::new();
+
         match &mut self.variant {
             HudElementVariant::ToolbarButton {
                 entity: button_entity,
                 ghost,
+                ..
             } => {
                 if let Some(Ghost {
                     done: true,
                     screen_coordinates,
                 }) = ghost
                 {
-                    let projection = view.last_render_center * translation(entity.position.state);
-                    let coordinates = solve_lu(
-                        &projection,
-                        from_int(*screen_coordinates).into_homogeneous(),
-                    )
-                    .into_cartesian();
-                    let button_shape = translation(coordinates) * button_entity.shape.clone();
+                    let mut entity = button_entity.clone();
+                    entity.position.state = from_int(*screen_coordinates);
+                    entity.position.velocity = Vec2::default();
 
-                    let mut res = entity.shape.clone().intersection(button_shape);
-
-                    entity.shape = res.pop().unwrap();
+                    actions.push(Action::JoinEntity { entity });
 
                     *ghost = None;
                 }
             }
         }
+        actions
     }
 
     fn handle_event(&mut self, event: &Event) -> bool {

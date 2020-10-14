@@ -5,7 +5,7 @@ use crate::math::{
     bounding_box::{BoundingBox, RectBounds},
     polygon::{construct_rect_poly_centered, Polygon},
 };
-use gamemath::{Mat3, Vec2};
+use gamemath::Vec2;
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
     ser::SerializeStruct,
@@ -649,7 +649,7 @@ impl<'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Insist<Vec2<T>>>
             Velocity,
         }
         struct InsistVisitor<U> {
-            p: Option<U>,
+            p: std::marker::PhantomData<U>,
         };
 
         impl<'de, T: Serialize + Deserialize<'de>> Visitor<'de> for InsistVisitor<T> {
@@ -700,9 +700,15 @@ impl<'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Insist<Vec2<T>>>
             }
         }
 
-        const FIELDS: &'static [&'static str] = &["state", "velocity"];
+        const FIELDS: &[&str] = &["state", "velocity"];
         deserializer
-            .deserialize_struct("Insist", FIELDS, InsistVisitor::<T> { p: None })
+            .deserialize_struct(
+                "Insist",
+                FIELDS,
+                InsistVisitor::<T> {
+                    p: std::marker::PhantomData,
+                },
+            )
             .map(|Insist { state, velocity }| Insist {
                 state: state.into(),
                 velocity: velocity.into(),

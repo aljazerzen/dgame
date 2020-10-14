@@ -1,12 +1,7 @@
 use crate::client::EntityId;
 use crate::entity::Entity;
 use crate::grid::{Grid, Insist, World};
-use crate::math::{
-    bounding_box::BoundingBox,
-    polygon::{construct_rect_poly, Polygon},
-    segment::Segment,
-    vec::*,
-};
+use crate::math::{bounding_box::BoundingBox, polygon::Polygon, segment::Segment, vec::*};
 use crate::stars::Stars;
 use gamemath::{Mat2, Mat3, Vec2, Vec3};
 use sdl2::pixels::Color;
@@ -23,7 +18,7 @@ pub struct View {
     pub stars_position: Insist<Vec2<f32>>,
     pub stars: Stars,
 
-    pub last_render_center: Mat3,
+    pub last_grid_to_screen: Mat3,
 
     pub focus: EntityId,
 }
@@ -37,7 +32,7 @@ impl View {
             stars_position: Insist::default(),
             stars: Stars::new(size),
 
-            last_render_center: Mat3::default(),
+            last_grid_to_screen: Mat3::default(),
 
             focus,
         }
@@ -65,7 +60,7 @@ pub fn render<T: RenderTarget>(
     let center = translation(into_vec(canvas.viewport().center()));
     let position = center * translation(view.offset);
 
-    view.last_render_center = position;
+    view.last_grid_to_screen = position;
 
     let relations = world.get_relations(focus.grid_id, Insist::default());
     for relation in relations {
@@ -104,6 +99,12 @@ impl<T: RenderTarget> Render<T> for Entity {
             let block_position =
                 entity_position * translation(block.offset()) * Mat3::rotation(block.angle());
             block.shape().render(block_position, canvas);
+
+            {
+                let force_point = block.force();
+                let force = Mat2::rotation(block.angle()) * force_point.force;
+                force.render(entity_position * translation(block.offset()), canvas);
+            }
         }
 
         self.shape.render(entity_position, canvas);

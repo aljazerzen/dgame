@@ -1,8 +1,7 @@
-use crate::entity::Block;
+use crate::entity::{Entity};
 use crate::math::polygon::Polygon;
-use crate::math::vec::*;
 use crate::render::View;
-use gamemath::{Vec2, Vec3};
+use gamemath::{Vec2};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
@@ -19,11 +18,11 @@ pub struct UserControls {
 }
 
 impl UserControls {
-    pub fn poll_actions<'a>(&'a mut self) -> std::vec::Drain<'a, Action> {
+    pub fn poll_actions(&mut self) -> std::vec::Drain<'_, Action> {
         self.action_queue.drain(..)
     }
 
-    pub fn handle_event(&mut self, event: &Event, view: &View) -> bool {
+    pub fn handle_event(&mut self, event: &Event, _view: &View) -> bool {
         match *event {
             Event::KeyDown {
                 keycode: Some(keycode),
@@ -37,16 +36,16 @@ impl UserControls {
             } => {
                 self.handle_key_event(keycode, false);
             }
-            Event::MouseButtonUp { x, y, .. } => {
-                let screen_coordinates = Vec3 {
-                    x: x as f32,
-                    y: y as f32,
-                    z: 1.0,
-                };
+            Event::MouseButtonUp { .. } => {
+                // let screen_coordinates = Vec3 {
+                //     x: x as f32,
+                //     y: y as f32,
+                //     z: 1.0,
+                // };
 
-                let grid_coordinates =
-                    crate::math::lu::solve_lu(&view.last_render_center, screen_coordinates)
-                        .into_cartesian();
+                // let grid_coordinates =
+                //     crate::math::lu::solve_lu(&view.last_grid_to_screen, screen_coordinates)
+                //         .into_cartesian();
 
                 // self.clicked = Some(grid_coordinates);
             }
@@ -152,7 +151,7 @@ pub enum Action {
     Rotate { direction: f32, throttle: f32 },
 
     UpdateShape { new_shape: Box<Polygon> },
-    PlaceBlock { block: Box<dyn Block> },
+    JoinEntity { entity: Box<Entity> },
 
     SaveEntity,
     LoadEntity { filename: String },

@@ -1,5 +1,7 @@
 use crate::entity::Entity;
 use crate::grid::World;
+use crate::math::lu::solve_lu;
+use crate::math::vec::*;
 use crate::render::{render, View};
 use crate::ui::hud::Hud;
 use crate::ui::user_controls::{Action, UserControls};
@@ -39,28 +41,52 @@ impl Client {
         }
     }
 
+    pub fn load(&mut self) {
+        self.hud.load_saved_entities(self.view.size);
+    }
+
     pub fn tick(&mut self, world: &mut World) {
         self.controlled_entity = world.find_entity(&self.controlled_entity);
 
         self.view.tick();
-        self.hud.tick(&self.view, world, self.controlled_entity);
+        self.hud.tick(world, self.controlled_entity);
 
-        let actions = self.user_controls.poll_actions();
+        let actions = self
+            .user_controls
+            .poll_actions()
+            .chain(self.hud.poll_actions());
+
         for action in actions {
+            let action = Client::map_action(&self.view, action);
             if let Action::LoadEntity { filename } = action {
-                if let Some(entity) = Entity::load_from_file(filename).ok() {
-                    if let Some(grid) = world.grids.get_mut(&self.controlled_entity.grid_id) {
-                        let position = grid
-                            .get_entity(self.controlled_entity.entity_id)
-                            .map(|e| e.position.state)
-                            .unwrap_or_default();
-                        grid.spawn_entity(position, entity);
-                    }
-                }
-            } else {
-                if let Some(entity) = world.get_entity_mut(&self.controlled_entity) {
-                    entity.apply_action(&action);
-                }
+                Client::spawn_entity(world, filename, self.controlled_entity);
+            } else if let Some(entity) = world.get_entity_mut(&self.controlled_entity) {
+                entity.apply_action(action);
+            }
+        }
+    }
+
+    fn map_action(view: &View, a: Action) -> Action {
+        let invert_transform = view.last_grid_to_screen;
+        match a {
+            Action::JoinEntity { mut entity } => {
+                entity.position.state =
+                    solve_lu(&invert_transform, entity.position.state.into_homogeneous())
+                        .into_cartesian();
+                Action::JoinEntity { entity }
+            }
+            _ => a,
+        }
+    }
+
+    fn spawn_entity(world: &mut World, filename: String, controlling: EntityId) {
+        if let Ok(entity) = Entity::load_from_file(filename.into()) {
+            if let Some(grid) = world.grids.get_mut(&controlling.grid_id) {
+                let position = grid
+                    .get_entity(controlling.entity_id)
+                    .map(|e| e.position.state)
+                    .unwrap_or_default();
+                grid.spawn_entity(position, entity);
             }
         }
     }

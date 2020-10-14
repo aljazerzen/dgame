@@ -7,7 +7,7 @@ use std::collections::HashMap;
 pub fn engine_tick(world: &mut World, view: &mut View) {
     world.split_grids();
     
-    world_tick(world, view);
+    absorb_common_insists(world, view);
 
     for grid in world.grids.values_mut() {
         grid.tick_parent_relation();
@@ -20,7 +20,7 @@ pub fn engine_tick(world: &mut World, view: &mut View) {
     world.join_grids();
 }
 
-fn world_tick(world: &mut World, view: &mut View) {
+fn absorb_common_insists(world: &mut World, view: &mut View) {
     view.focus = world.find_entity(&view.focus);
 
     let common_insist = world.absorb_common_insist(view.focus.grid_id);

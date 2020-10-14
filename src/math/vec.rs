@@ -1,9 +1,5 @@
 use gamemath::{Mat3, Vec2, Vec3};
-use serde::{
-    de::{SeqAccess, Visitor},
-    ser::SerializeTuple,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DeserializeAs, SerializeAs};
 
 pub trait Perpendicular {
@@ -121,7 +117,10 @@ impl<T: Serialize + Clone> From<&Vec2<T>> for Vec2Serde<T> {
 
 impl<T: Serialize> Into<Vec2<T>> for Vec2Serde<T> {
     fn into(self) -> Vec2<T> {
-        Vec2 { x: self.x, y: self.y }
+        Vec2 {
+            x: self.x,
+            y: self.y,
+        }
     }
 }
 
@@ -134,8 +133,7 @@ impl<T: Serialize + Clone> SerializeAs<Vec2<T>> for Vec2Serde<T> {
     }
 }
 
-impl <'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Vec2<T>> for Vec2Serde<T> {
-    
+impl<'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Vec2<T>> for Vec2Serde<T> {
     fn deserialize_as<D>(deserializer: D) -> Result<Vec2<T>, D::Error>
     where
         D: Deserializer<'de>,
@@ -165,7 +163,11 @@ impl<T: Serialize + Clone> From<&Vec3<T>> for Vec3Serde<T> {
 
 impl<T: Serialize> Into<Vec3<T>> for Vec3Serde<T> {
     fn into(self) -> Vec3<T> {
-        Vec3 { x: self.x, y: self.y, z: self.z }
+        Vec3 {
+            x: self.x,
+            y: self.y,
+            z: self.z,
+        }
     }
 }
 
@@ -178,8 +180,7 @@ impl<T: Serialize + Clone> SerializeAs<Vec3<T>> for Vec3Serde<T> {
     }
 }
 
-impl <'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Vec3<T>> for Vec3Serde<T> {
-    
+impl<'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Vec3<T>> for Vec3Serde<T> {
     fn deserialize_as<D>(deserializer: D) -> Result<Vec3<T>, D::Error>
     where
         D: Deserializer<'de>,

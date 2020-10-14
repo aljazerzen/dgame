@@ -48,6 +48,8 @@ fn main() {
     let entity_id = world.grids[&grid_id].entities[0].get_id();
     let mut client = Client::new(resolution, EntityId::new(grid_id, entity_id));
 
+    client.load();
+
     'running: loop {
         for event in event_pump.poll_iter() {
             if is_exit_event(&event) {
