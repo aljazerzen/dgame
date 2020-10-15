@@ -1,5 +1,4 @@
-use crate::entity::Entity;
-use crate::grid::World;
+use crate::world::{Entity, World};
 use crate::math::lu::solve_lu;
 use crate::math::vec::*;
 use crate::render::{render, View};

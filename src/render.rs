@@ -1,8 +1,7 @@
 use crate::client::EntityId;
-use crate::entity::Entity;
-use crate::grid::{Grid, Insist, World};
 use crate::math::{bounding_box::BoundingBox, polygon::Polygon, segment::Segment, vec::*};
 use crate::stars::Stars;
+use crate::world::{Entity, Grid, Insist, World};
 use gamemath::{Mat2, Mat3, Vec2, Vec3};
 use sdl2::pixels::Color;
 use sdl2::rect::Point;

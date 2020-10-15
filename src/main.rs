@@ -1,16 +1,15 @@
 mod client;
 mod engine;
-mod entity;
-mod grid;
 mod math;
 mod render;
 mod stars;
 mod ui;
+mod world;
 
 use client::{Client, EntityId};
 use engine::engine_tick;
 use gamemath::Vec2;
-use grid::construct_demo_world;
+use world::grid::construct_demo_world;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::render::Canvas;

@@ -1,19 +1,13 @@
+use super::{Entity, Insist, Thruster};
 use crate::client::EntityId;
-use crate::entity::{Entity, Thruster};
-use crate::math::vec::*;
 use crate::math::{
     bounding_box::{BoundingBox, RectBounds},
     polygon::{construct_rect_poly_centered, Polygon},
+    vec::*,
 };
 use gamemath::Vec2;
-use serde::{
-    de::{self, MapAccess, SeqAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use serde_with::{DeserializeAs, SerializeAs};
 use std::collections::HashMap;
-use std::ops::{Add, AddAssign, Div, Mul, Neg};
+use std::ops::Add;
 
 const GRID_SPLIT_DISTANCE: f32 = 500.0;
 const GRID_JOIN_DISTANCE: f32 = GRID_SPLIT_DISTANCE * 0.5;
@@ -21,14 +15,14 @@ const GRID_JOIN_DISTANCE: f32 = GRID_SPLIT_DISTANCE * 0.5;
 #[derive(Debug)]
 pub struct Grid {
     id: u64,
-    parent: Option<RelationToParent>,
+    parent: Option<GridRelation>,
     children: Vec<u64>,
 
     pub entities: Vec<Entity>,
 }
 
 impl Grid {
-    pub fn new(parent: Option<RelationToParent>, entities: Vec<Entity>) -> Self {
+    pub fn new(parent: Option<GridRelation>, entities: Vec<Entity>) -> Self {
         use rand::RngCore;
 
         let mut rng = rand::thread_rng();
@@ -100,7 +94,7 @@ impl Grid {
 
     pub fn tick_parent_relation(&mut self) {
         if let Some(p) = &mut self.parent {
-            p.relation.state += p.relation.velocity;
+            p.position.state += p.position.velocity;
         }
     }
 
@@ -122,10 +116,7 @@ impl Grid {
         let (parent_entities, child_entities) = Grid::segment_to_closest(&mut self.entities, a, b);
         self.entities = parent_entities;
 
-        Some(Grid::new(
-            Some(RelationToParent::new(self.id)),
-            child_entities,
-        ))
+        Some(Grid::new(Some(GridRelation::new(self.id)), child_entities))
     }
 
     fn segment_to_closest(
@@ -285,7 +276,7 @@ impl World {
                 grid.offset_entities(-insist);
 
                 if let Some(p) = &mut grid.parent {
-                    p.relation += -insist;
+                    p.position += -insist;
                 }
                 children = grid.children.clone();
             }
@@ -293,7 +284,7 @@ impl World {
             for child_id in &children {
                 let child = self.grids.get_mut(child_id).unwrap();
                 if let Some(p) = &mut child.parent {
-                    p.relation += insist;
+                    p.position += insist;
                 }
             }
 
@@ -365,12 +356,12 @@ impl World {
                 }
 
                 let first_child = self.grids.get_mut(&grid.children.pop().unwrap()).unwrap();
-                let relation = first_child.parent.as_ref().unwrap().relation;
+                let position = first_child.parent.as_ref().unwrap().position;
                 first_child.parent = None;
 
-                Some(RelationToParent {
+                Some(GridRelation {
                     id: first_child.id,
-                    relation,
+                    position,
                 })
             });
 
@@ -384,7 +375,7 @@ impl World {
 
                 for c in &grid.children {
                     if let Some(c) = &mut self.grids.get_mut(&c) {
-                        c.parent = Some(new_parent.clone() + c.parent.as_ref().unwrap().relation);
+                        c.parent = Some(new_parent.clone() + c.parent.as_ref().unwrap().position);
                     }
                 }
 
@@ -399,7 +390,7 @@ impl World {
 
     pub fn get_relations(&self, grid_id: u64, position: Insist<Vec2<f32>>) -> Vec<GridRelation> {
         if let Some(p) = &self.grids[&grid_id].parent {
-            self.get_relations(p.id, position + p.relation)
+            self.get_relations(p.id, position + p.position)
         } else {
             self.get_descendant_relations(grid_id, position)
         }
@@ -414,7 +405,7 @@ impl World {
                 + self.grids[&child_id]
                     .parent
                     .as_ref()
-                    .map(|p| -p.relation)
+                    .map(|p| -p.position)
                     .unwrap_or_default();
 
             res.extend(self.get_descendant_relations(child_id, child_position));
@@ -431,9 +422,9 @@ impl World {
         relation: Insist<Vec2<f32>>,
     ) -> Insist<Vec2<f32>> {
         if let Some(p) = &self.grids[&a].parent {
-            self.get_relation_between(p.id, b, relation + p.relation)
+            self.get_relation_between(p.id, b, relation + p.position)
         } else if let Some(p) = &self.grids[&b].parent {
-            self.get_relation_between(p.id, b, relation + p.relation)
+            self.get_relation_between(p.id, b, relation + p.position)
         } else {
             relation
         }
@@ -471,35 +462,29 @@ impl World {
 }
 
 #[derive(Clone, Debug)]
-pub struct RelationToParent {
-    id: u64,
-    relation: Insist<Vec2<f32>>,
-}
-
-impl RelationToParent {
-    pub fn new(id: u64) -> Self {
-        RelationToParent {
-            id,
-            relation: Insist::default(),
-        }
-    }
-}
-
-impl Add<Insist<Vec2<f32>>> for RelationToParent {
-    type Output = RelationToParent;
-
-    fn add(self, right: Insist<Vec2<f32>>) -> Self {
-        RelationToParent {
-            id: self.id,
-            relation: self.relation + right,
-        }
-    }
-}
-
-#[derive(Clone)]
 pub struct GridRelation {
     pub position: Insist<Vec2<f32>>,
     pub id: u64,
+}
+
+impl GridRelation {
+    pub fn new(id: u64) -> Self {
+        GridRelation {
+            id,
+            position: Insist::default(),
+        }
+    }
+}
+
+impl Add<Insist<Vec2<f32>>> for GridRelation {
+    type Output = GridRelation;
+
+    fn add(self, right: Insist<Vec2<f32>>) -> Self {
+        GridRelation {
+            id: self.id,
+            position: self.position + right,
+        }
+    }
 }
 
 impl PartialEq<Grid> for Grid {
@@ -514,208 +499,6 @@ impl PartialEq<u64> for Grid {
     }
 }
 
-/// A value and its velocity.
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
-pub struct Insist<T> {
-    pub state: T,
-    pub velocity: T,
-}
-
-impl Insist<f32> {
-    fn is_zero(self) -> bool {
-        self.state == 0.0 && self.velocity == 0.0
-    }
-}
-
-impl Insist<Vec2<f32>> {
-    fn length_squared(&self) -> Insist<f32> {
-        Insist {
-            state: self.state.length_squared(),
-            velocity: self.state.length_squared(),
-        }
-    }
-
-    fn dot(&self, right: &Self) -> Insist<f32> {
-        Insist {
-            state: self.state.dot(right.state),
-            velocity: self.velocity.dot(right.velocity),
-        }
-    }
-
-    fn get_common(insists: Vec<&Insist<Vec2<f32>>>) -> Insist<Vec2<f32>> {
-        let mut sum = Insist::default();
-        for insist in &insists {
-            sum += **insist;
-        }
-
-        let sum_norm = sum.length_squared();
-        if sum_norm.state == 0.0 && sum_norm.velocity == 0.0 {
-            return sum;
-        }
-
-        let mut projection_sum: Insist<f32> = Insist::default();
-        for insist in &insists {
-            projection_sum += sum.dot(insist) / sum_norm;
-        }
-        let projection_mean = projection_sum / insists.len() as f32;
-        sum * projection_mean
-    }
-}
-
-impl<T: AddAssign<T>> AddAssign<Insist<T>> for Insist<T> {
-    fn add_assign(&mut self, insist: Insist<T>) {
-        self.state += insist.state;
-        self.velocity += insist.velocity;
-    }
-}
-
-impl<T: AddAssign<T>> Add<Insist<T>> for Insist<T> {
-    type Output = Insist<T>;
-
-    fn add(self, right: Insist<T>) -> Insist<T> {
-        let mut result = self;
-        result += right;
-        result
-    }
-}
-
-impl<A: Mul<B, Output = O>, B, O> Mul<Insist<B>> for Insist<A> {
-    type Output = Insist<O>;
-
-    fn mul(self, insist: Insist<B>) -> Insist<O> {
-        Insist {
-            state: self.state * insist.state,
-            velocity: self.velocity * insist.velocity,
-        }
-    }
-}
-
-impl<T: Div<T, Output = O>, O> Div<Insist<T>> for Insist<T> {
-    type Output = Insist<O>;
-
-    fn div(self, right: Insist<T>) -> Insist<O> {
-        Insist {
-            state: self.state / right.state,
-            velocity: self.velocity / right.velocity,
-        }
-    }
-}
-
-impl<T: Div<T, Output = O> + Copy, O> Div<T> for Insist<T> {
-    type Output = Insist<O>;
-
-    fn div(self, right: T) -> Insist<O> {
-        Insist {
-            state: self.state / right,
-            velocity: self.velocity / right,
-        }
-    }
-}
-
-impl<T: Neg<Output = O>, O> Neg for Insist<T> {
-    type Output = Insist<O>;
-
-    fn neg(self) -> Insist<O> {
-        Insist {
-            state: -self.state,
-            velocity: -self.velocity,
-        }
-    }
-}
-
-impl<T: Serialize + Clone> SerializeAs<Insist<Vec2<T>>> for Insist<Vec2Serde<T>> {
-    fn serialize_as<S>(source: &Insist<Vec2<T>>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("Insist", 3)?;
-        s.serialize_field("state", &Vec2Serde::from(&source.state))?;
-        s.serialize_field("velocity", &Vec2Serde::from(&source.velocity))?;
-        s.end()
-    }
-}
-
-impl<'de, T: Serialize + Deserialize<'de>> DeserializeAs<'de, Insist<Vec2<T>>>
-    for Insist<Vec2Serde<T>>
-{
-    fn deserialize_as<D>(deserializer: D) -> Result<Insist<Vec2<T>>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "lowercase")]
-        enum Field {
-            State,
-            Velocity,
-        }
-        struct InsistVisitor<U> {
-            p: std::marker::PhantomData<U>,
-        };
-
-        impl<'de, T: Serialize + Deserialize<'de>> Visitor<'de> for InsistVisitor<T> {
-            type Value = Insist<Vec2Serde<T>>;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("struct Insist")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<Insist<Vec2Serde<T>>, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                let state = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let velocity = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                Ok(Insist { state, velocity })
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<Insist<Vec2Serde<T>>, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut state = None;
-                let mut velocity = None;
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::State => {
-                            if state.is_some() {
-                                return Err(de::Error::duplicate_field("state"));
-                            }
-                            state = Some(map.next_value()?);
-                        }
-                        Field::Velocity => {
-                            if velocity.is_some() {
-                                return Err(de::Error::duplicate_field("velocity"));
-                            }
-                            velocity = Some(map.next_value()?);
-                        }
-                    }
-                }
-                let state = state.ok_or_else(|| de::Error::missing_field("state"))?;
-                let velocity = velocity.ok_or_else(|| de::Error::missing_field("velocity"))?;
-                Ok(Insist { state, velocity })
-            }
-        }
-
-        const FIELDS: &[&str] = &["state", "velocity"];
-        deserializer
-            .deserialize_struct(
-                "Insist",
-                FIELDS,
-                InsistVisitor::<T> {
-                    p: std::marker::PhantomData,
-                },
-            )
-            .map(|Insist { state, velocity }| Insist {
-                state: state.into(),
-                velocity: velocity.into(),
-            })
-    }
-}
-
 #[allow(dead_code)]
 pub fn construct_demo_world() -> World {
     let mut grids = HashMap::new();
@@ -725,21 +508,20 @@ pub fn construct_demo_world() -> World {
 
         let a = construct_rect_poly_centered(50.0, 70.0);
 
-        let b = translation(Vec2 { x: 0.0, y: 0.0 })
-            * Polygon::from(vec![
-                Vec2 { x: 11.0, y: -68.0 },
-                Vec2 { x: -3.0, y: -49.0 },
-                Vec2 { x: -20.0, y: -54.0 },
-                Vec2 { x: -25.0, y: -35.0 },
-                Vec2 { x: -33.0, y: 1.0 },
-                Vec2 { x: -25.0, y: 35.0 },
-                Vec2 { x: -8.0, y: 53.0 },
-                Vec2 { x: 25.0, y: 35.0 },
-                Vec2 { x: 17.0, y: 21.0 },
-                Vec2 { x: 41.0, y: 6.0 },
-                Vec2 { x: 42.0, y: -20.0 },
-                Vec2 { x: 25.0, y: -35.0 },
-            ]);
+        let _b = Polygon::from(vec![
+            Vec2 { x: 11.0, y: -68.0 },
+            Vec2 { x: -3.0, y: -49.0 },
+            Vec2 { x: -20.0, y: -54.0 },
+            Vec2 { x: -25.0, y: -35.0 },
+            Vec2 { x: -33.0, y: 1.0 },
+            Vec2 { x: -25.0, y: 35.0 },
+            Vec2 { x: -8.0, y: 53.0 },
+            Vec2 { x: 25.0, y: 35.0 },
+            Vec2 { x: 17.0, y: 21.0 },
+            Vec2 { x: 41.0, y: 6.0 },
+            Vec2 { x: 42.0, y: -20.0 },
+            Vec2 { x: 25.0, y: -35.0 },
+        ]);
 
         let _c = Polygon::from(vec![
             Vec2 { x: 146.0, y: 129.0 },
@@ -855,13 +637,13 @@ pub fn construct_demo_world() -> World {
 
         {
             use std::f32::consts::{FRAC_PI_2, PI};
-            let mut entity = Entity::new(
+            let entity = Entity::new(
                 a.clone(),
                 vec![
-                    // Box::from(Thruster::new(20.0, Vec2::new(0.0, 10.0), 0.0)),
-                    // Box::from(Thruster::new(20.0, Vec2::new(-10.0, 0.0), FRAC_PI_2)),
-                    // Box::from(Thruster::new(20.0, Vec2::new(10.0, 0.0), -FRAC_PI_2)),
-                    // Box::from(Thruster::new(20.0, Vec2::new(0.0, -10.0), PI)),
+                    Box::from(Thruster::new(20.0, Vec2::new(0.0, 10.0), 0.0)),
+                    Box::from(Thruster::new(20.0, Vec2::new(-10.0, 0.0), FRAC_PI_2)),
+                    Box::from(Thruster::new(20.0, Vec2::new(10.0, 0.0), -FRAC_PI_2)),
+                    Box::from(Thruster::new(20.0, Vec2::new(0.0, -10.0), PI)),
                 ],
             );
 

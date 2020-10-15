@@ -1,6 +1,5 @@
 use crate::client::EntityId;
-use crate::entity::{Entity, Thruster};
-use crate::grid::{GridRelation, Insist, World};
+use crate::world::{Entity, Thruster, GridRelation, Insist, World};
 use crate::math::bounding_box::BoundingBox;
 use crate::math::polygon::{construct_rect_poly, construct_rect_poly_centered, Polygon};
 use crate::math::segment::Segment;

@@ -1,6 +1,6 @@
 use super::polygon::Polygon;
 use super::vec::*;
-use crate::grid::Grid;
+use crate::world::Grid;
 use gamemath::{Mat3, Vec2};
 
 #[derive(Default)]

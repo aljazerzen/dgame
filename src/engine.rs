@@ -1,5 +1,4 @@
-use crate::entity::Entity;
-use crate::grid::{Grid, World};
+use crate::world::{Grid, World, Entity};
 use crate::render::View;
 use gamemath::Vec2;
 use std::collections::HashMap;

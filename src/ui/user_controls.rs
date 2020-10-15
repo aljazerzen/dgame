@@ -1,4 +1,4 @@
-use crate::entity::{Entity};
+use crate::world::{Entity};
 use crate::math::polygon::Polygon;
 use crate::render::View;
 use gamemath::{Vec2};
