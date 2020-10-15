@@ -108,6 +108,8 @@ impl<T: RenderTarget> Render<T> for Entity {
         }
 
         self.shape.render(entity_position, canvas);
+
+        ().render(entity_position, canvas);
     }
 }
 
@@ -122,13 +124,14 @@ impl<T: RenderTarget> Render<T> for Polygon {
     }
 }
 
+/// Render vector
 impl<T: RenderTarget> Render<T> for Vec2<f32> {
     fn render(&self, position: Mat3, canvas: &mut Canvas<T>) {
         let points: Vec<Vec2<f32>> = [
             Vec2::default(),
             *self,
-            *self + (Mat2::rotation(PI * 0.9) * *self).normalized() * 5.0,
-            *self + (Mat2::rotation(-PI * 0.9) * *self).normalized() * 5.0,
+            *self + (Mat2::rotation(PI * 0.9) * *self).normalized() * 10.0,
+            *self + (Mat2::rotation(-PI * 0.9) * *self).normalized() * 10.0,
         ]
         .iter()
         .map(|p| (position * p.into_homogeneous()).into_cartesian())
@@ -137,6 +140,30 @@ impl<T: RenderTarget> Render<T> for Vec2<f32> {
             Segment::new(points[0], points[1]),
             Segment::new(points[2], points[1]),
             Segment::new(points[1], points[3]),
+        ];
+        for line in &lines {
+            canvas
+                .draw_line(into_point(line.a), into_point(line.b))
+                .expect("Draw line");
+        }
+    }
+}
+
+/// Render point
+impl<T: RenderTarget> Render<T> for () {
+    fn render(&self, position: Mat3, canvas: &mut Canvas<T>) {
+        let points: Vec<Vec2<f32>> = [
+            Vec2::new(-3.0, -3.0),
+            Vec2::new(3.0, 3.0),
+            Vec2::new(3.0, -3.0),
+            Vec2::new(-3.0, 3.0),
+        ]
+        .iter()
+        .map(|p| (position * p.into_homogeneous()).into_cartesian())
+        .collect();
+        let lines = [
+            Segment::new(points[0], points[1]),
+            Segment::new(points[2], points[3]),
         ];
         for line in &lines {
             canvas

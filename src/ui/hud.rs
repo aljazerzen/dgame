@@ -176,7 +176,8 @@ impl HudElement {
         let bb = entity.shape.bounding_box();
         let diagonal = bb.bottom_right - bb.top_left;
         let max_dimen = diagonal.x.max(diagonal.y);
-        let scale = 0.8 * (HUD_ELEMENT_SIZE as f32) / max_dimen;
+        let scale_factor = (0.01 * max_dimen + 0.2).min(0.9).max(0.6);
+        let scale = scale_factor * (HUD_ELEMENT_SIZE as f32) / max_dimen;
 
         HudElement {
             position,

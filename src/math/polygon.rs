@@ -1,11 +1,10 @@
-
 use super::line::Line;
 use super::segment::Segment;
 use super::vec::*;
 use gamemath::{Mat3, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
-use std::iter::Iterator;
 use serde_with::serde_as;
+use std::iter::Iterator;
 
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -93,7 +92,10 @@ impl Polygon {
     }
 
     pub fn contains_polygon(&self, right: &Polygon) -> bool {
-        right.points.iter().all(|p| self.contains_point(p.into_cartesian()))
+        right
+            .points
+            .iter()
+            .all(|p| self.contains_point(p.into_cartesian()))
     }
 
     pub fn area_and_centroid(&self) -> (f32, Vec2<f32>) {
@@ -125,12 +127,6 @@ impl Polygon {
         }
 
         sum / (all as f32) * sum / (all as f32)
-    }
-
-    pub fn mul_left(&mut self, left: Mat3) {
-        for p in &mut self.points {
-            *p = left * *p;
-        }
     }
 
     pub fn intersect_line_segment(&self, segment: Segment) -> Option<(f32, Vec2<f32>)> {

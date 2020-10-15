@@ -78,7 +78,8 @@ impl BoundingBox for Grid {
     fn bounding_box_transformed(&self, position: &Mat3) -> RectBounds {
         let mut bounds = RectBounds::new(0.0.into());
         for entity in &self.entities {
-            let entity_position = *position * translation(entity.position.state);
+            let entity_position =
+                *position * translation(entity.position.state) * Mat3::rotation(entity.angle.state);
             bounds += entity.shape.bounding_box_transformed(&entity_position);
         }
         bounds

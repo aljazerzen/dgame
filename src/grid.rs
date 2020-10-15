@@ -723,7 +723,7 @@ pub fn construct_demo_world() -> World {
     {
         let mut grid = Grid::new(None, Vec::new());
 
-        let a = translation(Vec2 { x: 100.0, y: 60.0 }) * construct_rect_poly_centered(50.0, 70.0);
+        let a = construct_rect_poly_centered(50.0, 70.0);
 
         let b = translation(Vec2 { x: 0.0, y: 0.0 })
             * Polygon::from(vec![
@@ -854,35 +854,16 @@ pub fn construct_demo_world() -> World {
         ]);
 
         {
-            let mut entity = Entity::new(
-                b,
-                Insist {
-                    state: Vec2::default(),
-                    velocity: Vec2 { x: 0.0, y: 0.0 },
-                },
-                Insist::default(),
-            );
-
-            {
-                let thruster = Thruster::new(20.0, Vec2::new(0.0, 10.0), 0.0);
-                entity.blocks.push(Box::from(thruster));
-            }
-
             use std::f32::consts::{FRAC_PI_2, PI};
-            {
-                let thruster = Thruster::new(20.0, Vec2::new(-10.0, 0.0), FRAC_PI_2);
-                entity.blocks.push(Box::from(thruster));
-            }
-
-            {
-                let thruster = Thruster::new(20.0, Vec2::new(10.0, 0.0), -FRAC_PI_2);
-                entity.blocks.push(Box::from(thruster));
-            }
-
-            {
-                let thruster = Thruster::new(20.0, Vec2::new(0.0, -10.0), PI);
-                entity.blocks.push(Box::from(thruster));
-            }
+            let mut entity = Entity::new(
+                a.clone(),
+                vec![
+                    // Box::from(Thruster::new(20.0, Vec2::new(0.0, 10.0), 0.0)),
+                    // Box::from(Thruster::new(20.0, Vec2::new(-10.0, 0.0), FRAC_PI_2)),
+                    // Box::from(Thruster::new(20.0, Vec2::new(10.0, 0.0), -FRAC_PI_2)),
+                    // Box::from(Thruster::new(20.0, Vec2::new(0.0, -10.0), PI)),
+                ],
+            );
 
             grid.entities.push(entity);
         }
@@ -894,14 +875,9 @@ pub fn construct_demo_world() -> World {
             // velocity: Vec2 { x: 1.0, y: 0.0 },
             // });
 
-            let entity = Entity::new(
-                a,
-                Insist {
-                    state: Vec2 { x: 0.0, y: 0.0 },
-                    velocity: Vec2 { x: 0.0, y: 0.0 },
-                },
-                Insist::default(),
-            );
+            let mut entity = Entity::new(a, vec![]);
+
+            entity.position.state = Vec2 { x: 100.0, y: 60.0 };
 
             grid.entities.push(entity);
 
@@ -909,20 +885,14 @@ pub fn construct_demo_world() -> World {
         }
 
         {
-            let entity = Entity::new(
+            let mut entity = Entity::new(
                 translation(Vec2 {
                     x: 100.0,
                     y: -100.0,
                 }) * construct_rect_poly_centered(50.0, 70.0),
-                Insist {
-                    state: Vec2 { x: 0.0, y: 0.0 },
-                    velocity: Vec2 { x: 0.0, y: 0.0 },
-                },
-                Insist {
-                    state: 1.0,
-                    velocity: 0.0,
-                },
+                vec![],
             );
+            entity.angle.state = 1.0;
 
             grid.entities.push(entity);
         }

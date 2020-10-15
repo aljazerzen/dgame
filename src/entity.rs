@@ -27,7 +27,7 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub fn new(poly: Polygon, position: Insist<Vec2<f32>>, angle: Insist<f32>) -> Entity {
+    pub fn new(poly: Polygon, blocks: Vec<Box<dyn Block>>) -> Entity {
         use rand::RngCore;
         let mut rng = rand::thread_rng();
 
@@ -35,10 +35,10 @@ impl Entity {
             id: rng.next_u64(),
 
             shape: poly,
-            position,
-            angle,
+            position: Insist::default(),
+            angle: Insist::default(),
 
-            blocks: Vec::default(),
+            blocks,
 
             mass: 0.0,
             mass_angular: 0.0,
@@ -47,9 +47,12 @@ impl Entity {
         result
     }
 
-    pub fn new_from_block(block: Box<dyn Block>) -> Entity {
-        let mut entity = Entity::new(block.shape().clone(), Insist::default(), Insist::default());
-        entity.blocks.push(block);
+    pub fn new_from_block(mut block: Box<dyn Block>) -> Entity {
+        block.set_offset(Vec2::default());
+        block.set_angle(0.0);
+        let shape = block.shape().clone();
+        let mut entity = Entity::new(shape, vec![Box::from(block)]);
+        entity.position = Insist::default();
         entity
     }
 
@@ -89,7 +92,7 @@ impl Entity {
                         (transform * block.offset().into_homogeneous()).into_cartesian(),
                     );
                     block.set_angle(block.angle() + entity.angle.state - self.angle.state);
-                    self.blocks.push(block);
+                    self.add_block(block);
                 }
                 self.redistribute_weight();
             }
@@ -107,6 +110,25 @@ impl Entity {
 
         //     self.redistribute_weight();
         // }
+    }
+
+    pub fn add_block(&mut self, block: Box<dyn Block>) {
+        let block_shape = block.transform() * Mat3::identity().scaled(Vec2::new(0.999, 0.999)) * block.shape().clone();
+
+        if !self.shape.contains_polygon(&block_shape) {
+            return;
+        }
+
+        for b in &self.blocks {
+            let s = b.transform() * b.shape().clone();
+            for p in &s.points {
+                if block_shape.contains_point(p.into_cartesian()) {
+                    return;
+                }
+            }
+        }
+
+        self.blocks.push(block);
     }
 
     pub fn tick(&mut self) {
@@ -149,7 +171,7 @@ impl Entity {
         for block in &mut self.blocks {
             block.set_offset(block.offset() - mass_point.point);
         }
-        self.shape.mul_left(translation(-mass_point.point));
+        self.shape = translation(-mass_point.point) * self.shape.clone();
 
         self.position.state += mass_point.point;
 
@@ -290,6 +312,10 @@ pub trait Block: std::fmt::Debug + CloneBlock {
     }
 
     fn apply_action(&mut self, action: &Action);
+
+    fn transform(&self) -> Mat3 {
+        translation(self.offset()) * Mat3::rotation(self.angle())
+    }
 }
 
 pub trait CloneBlock {
@@ -341,19 +367,24 @@ impl Thruster {
     pub fn shape(width: f32) -> Polygon {
         let p = Polygon::from(
             &[
-                [0.0, 0.0],
-                [width, 0.0],
-                [width, width],
-                [width * 0.8, width],
-                [width, width * 1.6],
-                [0.0, width * 1.6],
-                [width * 0.2, width],
-                [0.0, width],
+                [0.1, 0.0],
+                [0.9, 0.0],
+                [1.0, 0.1],
+                [1.0, 0.9],
+                [0.8, 1.1],
+                [0.9, 1.3],
+                [1.0, 1.7],
+                [0.0, 1.7],
+                [0.1, 1.3],
+                [0.2, 1.1],
+                [0.0, 0.9],
+                [0.0, 0.1],
             ][..],
         );
 
         let (_, center) = p.area_and_centroid();
-        translation(-center) * p
+        let transform = Mat3::identity().scaled(Vec2::new(width, width)) * translation(-center);
+        transform * p
     }
 }
 
